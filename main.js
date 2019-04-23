@@ -58,6 +58,9 @@ phina.define('MainScene', {
         this.paddle.release();
         this.ballSpeed = BALL_SPEED;
       });
+
+      // スコアリセット
+      this.score = 0;
   },
 
   update: function(app) {
@@ -101,12 +104,13 @@ phina.define('MainScene', {
     if (ball.bottom > this.gridY.width) {
       ball.bottom = this.gridY.width
       ball.reflectY();
+      this.gameover(); // 下に
     }
 
     // ボールとブロックの当たり判定をして取り除く
     this.group.children.some(function(block) {
       if (ball.hitTestElement(block)) {
-        var dq = Vector2.sub(ball, block);
+        const dq = Vector2.sub(ball, block);
 
         if (Math.abs(dq.x) < Math.abs(dq.y)) {
           ball.reflectY();
@@ -126,6 +130,7 @@ phina.define('MainScene', {
             ball.right = block.left;
           }
         }
+        this.score += 1;
         block.remove();
         return true;
       }
@@ -143,6 +148,22 @@ phina.define('MainScene', {
       // speed up
       this.ballSpeed += 1;
     }
+  },
+
+  gameover: function() {
+    this.exit({
+      score: this.score,
+      message: '死',
+      hashtags: 'sifueのブロック崩し',
+      url: phina.global.location && phina.global.location.href,
+
+      width: 640,
+      height: 960,
+
+      fontColor: '#b53428',
+      backgroundColor: '#280801',
+      backgroundImage: '',
+    });
   },
 });
 
