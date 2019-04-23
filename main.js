@@ -4,7 +4,7 @@ phina.globalize();
 
 const BALL_RADIUS = 10;
 const BALL_INIT_POS_OFFSET = BALL_RADIUS * 10;
-const BALL_SPEED = 50;
+const BALL_SPEED = 10;
 const BLOCK_WIDTH = 52;
 const BLOCK_HEIGHT = 20;
 const MAX_PER_LINE_X = 8;
@@ -12,6 +12,10 @@ const MAX_PER_LINE_Y = 10;
 const BLOCK_NUM = MAX_PER_LINE_X * MAX_PER_LINE_Y;
 const BOARD_PADDING_X = 100;
 const BOARD_PADDING_Y = 100;
+
+const PADDLE_WIDTH = 100;
+const PADDLE_HEIGHT = 20;
+const PADDLE_SPEED = 10;
 
 // MainScene クラスを定義
 phina.define('MainScene', {
@@ -21,10 +25,8 @@ phina.define('MainScene', {
     // 背景色を指定
     this.backgroundColor = '#247BA0';
 
-    // ボールを設置
+    // ボールを生成
     this.ball = Ball().addChildTo(this);
-    this.ball.x = this.gridX.center();
-    this.ball.y = this.gridY.width - BALL_INIT_POS_OFFSET;
 
     // ブロックを設置
     this.group = DisplayElement().addChildTo(this);
@@ -43,7 +45,19 @@ phina.define('MainScene', {
       block.x = gridX.span(xIndex) + BOARD_PADDING_X + BLOCK_WIDTH / 2;
       block.y = gridY.span(yIndex) + BOARD_PADDING_Y + BLOCK_HEIGHT / 2;
     }, this);
-    
+
+      // パドルとボールを設置
+      this.paddle = Paddle().addChildTo(this);
+      this.paddle.setPosition(this.gridX.center(), this.gridY.span(15));
+      this.paddle.hold(this.ball);
+
+      // タッチでゲーム開始
+      // https://qiita.com/hansel_no_kioku/items/32926abee3711963ce4b
+      this.ballSpeed = 0;
+      this.one('keydown', function() {
+        this.paddle.release();
+        this.ballSpeed = BALL_SPEED;
+      });
   },
 
   update: function(app) {
@@ -55,7 +69,17 @@ phina.define('MainScene', {
       this.checkHit();
     }, this);
 
-  
+    // パドルの位置を更新、左右の限界を設定して戻す
+    const leftPaddleLimit = PADDLE_WIDTH / 2; 
+    const rightPaddleLimit = this.gridX.width - PADDLE_WIDTH / 2;
+
+    if (leftPaddleLimit <=  this.paddle.x && this.paddle.x <= rightPaddleLimit) {
+      this.paddle.x += app.keyboard.getKeyDirection().x * PADDLE_SPEED;
+    } else if (this.paddle.x < leftPaddleLimit) {
+      this.paddle.x = leftPaddleLimit;
+    } else if (rightPaddleLimit < this.paddle.x) {
+      this.paddle.x = rightPaddleLimit;
+    }
   },
 
   checkHit: function() {
@@ -79,33 +103,46 @@ phina.define('MainScene', {
       ball.reflectY();
     }
 
-      // ボールをの当たり判定をして取り除く
-      this.group.children.some(function(block) {
-        if (ball.hitTestElement(block)) {
-          var dq = Vector2.sub(ball, block);
-  
-          if (Math.abs(dq.x) < Math.abs(dq.y)) {
-            ball.reflectY();
-            if (dq.y >= 0) {
-              ball.top = block.bottom;
-            }
-            else {
-              ball.bottom = block.top;
-            }
+    // ボールとブロックの当たり判定をして取り除く
+    this.group.children.some(function(block) {
+      if (ball.hitTestElement(block)) {
+        var dq = Vector2.sub(ball, block);
+
+        if (Math.abs(dq.x) < Math.abs(dq.y)) {
+          ball.reflectY();
+          if (dq.y >= 0) {
+            ball.top = block.bottom;
           }
           else {
-            ball.reflectX();
-            if (dq.x >= 0) {
-              ball.left = block.right;
-            }
-            else {
-              ball.right = block.left;
-            }
+            ball.bottom = block.top;
           }
-          block.remove();
-          return true;
         }
-      }, this);
+        else {
+          ball.reflectX();
+          if (dq.x >= 0) {
+            ball.left = block.right;
+          }
+          else {
+            ball.right = block.left;
+          }
+        }
+        block.remove();
+        return true;
+      }
+    }, this);
+
+    // ボールとパドル
+    if (ball.hitTestElement(this.paddle)) {
+      ball.bottom = this.paddle.top;
+
+      var dx = ball.x - this.paddle.x;
+      ball.direction.x = dx;
+      ball.direction.y = -80;
+      ball.direction.normalize();
+
+      // speed up
+      this.ballSpeed += 1;
+    }
   },
 });
 
@@ -144,6 +181,36 @@ phina.define('Ball', {
   },
 });
 
+/**
+ * パドルを定義
+ */
+phina.define('Paddle', {
+  superClass: 'RectangleShape',
+  init: function() {
+    this.superInit({
+      width: PADDLE_WIDTH,
+      height: PADDLE_HEIGHT,
+      fill: '#F25F5C',
+      stroke: null,
+      cornerRadius: 0,
+    });
+  },
+
+  hold: function(ball) {
+    this.ball = ball;
+  },
+
+  release: function() {
+    this.ball = null;
+  },
+
+  update: function() {
+    if (this.ball) {
+      this.ball.x = this.x;
+      this.ball.y = this.top-this.ball.radius;
+    }
+  }
+});
 
 /**
  * ブロックを定義
